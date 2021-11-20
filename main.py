@@ -7,18 +7,22 @@ cam_threads = []
 
 @app.route("/")
 def index():
-    return render_template('index.html')
+    return render_template('index.jinja', cam_threads=cam_threads)
 
 
-@app.route("/stream")
-def stream():
-    return Response(gen(), mimetype='multipart/x-mixed-replace; boundary=frame')
+@app.route("/stream/<index>")
+def stream(index):
+    return Response(gen(index), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
-def gen():
+def gen(index):
+    print(index)
+    if index == None:
+        index = 0
+    index = int(index)
     while True:
-        #get camera frame
-        frame = cam_threads[0].get_frame()
+        # Get camera frame
+        frame = cam_threads[index].get_frame()
         if frame is None:
             raise Exception("The frame could not be found!")
         yield (b'--frame\r\n'

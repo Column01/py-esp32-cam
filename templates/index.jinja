@@ -1,0 +1,13 @@
+<html>
+  <head>
+    <title>ESP32 Camera Stream</title>
+  </head>
+  <body>
+    <h1>ESP32 Cam</h1>
+    {%+ for cam in cam_threads %}
+      <img id="cam" src="/stream/{{ loop.index0 }}">
+    {%+ else %}
+      <p>No camera streams were found!</p>
+    {%+ endfor %}
+  </body>
+</html>
