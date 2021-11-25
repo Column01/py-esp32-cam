@@ -1,4 +1,4 @@
-from cam import ESP32SecurityCam
+from cam import ESP32SecurityCam, FrameSize
 from flask import Flask, Response, render_template
 
 app = Flask("Camera Feeds")
@@ -16,7 +16,6 @@ def stream(index):
 
 
 def gen(index):
-    print(index)
     if index == None:
         index = 0
     index = int(index)
@@ -30,7 +29,7 @@ def gen(index):
 
 
 if __name__ == "__main__":
-    cam = ESP32SecurityCam("http://192.168.0.27:81/stream")
+    cam = ESP32SecurityCam("http://192.168.0.27", FrameSize.FRAMESIZE_SVGA, (True, False), 100, 50, False)
     cam.start()
     cam_threads.append(cam)
-    app.run("0.0.0.0", port=5000)
+    app.run("127.0.0.1", port=5000)
