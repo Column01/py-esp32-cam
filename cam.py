@@ -207,7 +207,7 @@ class ESP32SecurityCam(threading.Thread):
                     
                     if self.writer is None:
                         h, w = frame.shape[:2]
-                        print(f"VIDEO STATS: {h}p{avg_fps}")
+                        print(f"VIDEO STATS: {w}x{h}@{avg_fps}fps")
                         file_name = "recording-" + datetime.datetime.now().strftime("%d-%m-%Y %I-%M-%S%p") + ".avi"
                         self.writer = cv2.VideoWriter(file_name, self.fourcc, avg_fps, (w, h), True)
                 
