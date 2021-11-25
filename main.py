@@ -29,7 +29,7 @@ def gen(index):
 
 
 if __name__ == "__main__":
-    cam = ESP32SecurityCam("http://192.168.0.27", FrameSize.FRAMESIZE_SVGA, (True, False), 100, 50, False)
+    cam = ESP32SecurityCam("http://192.168.0.27", FrameSize.FRAMESIZE_SVGA, (True, False), 100, 50, True)
     cam.start()
     cam_threads.append(cam)
-    app.run("127.0.0.1", port=5000)
+    app.run("0.0.0.0", port=5000)

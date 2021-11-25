@@ -70,6 +70,7 @@ class ESP32SecurityCam(threading.Thread):
         # self.body = cv2.CascadeClassifier('models/fullbody.xml')
         # The current camera frame (used for streaming to flask web server)
         self.cur_frame = None
+        self._new_frame = False
         # Initialize an FPS variable
         self.fps = 0
         self.fps_snapshots = collections.deque(maxlen=capture_length)
@@ -85,6 +86,7 @@ class ESP32SecurityCam(threading.Thread):
         self.frames_till_record = 0
 
         self.vid_write_thread = None
+        self.facial_detection_thread = threading.Thread(target=self.face_detect)
 
         # Initialize the class as a thread
         threading.Thread.__init__(self)
@@ -96,6 +98,9 @@ class ESP32SecurityCam(threading.Thread):
 
         self.fps = self.cap.get(cv2.CAP_PROP_FPS)
         if ret:
+            if self.do_face_detect:
+                self.facial_detection_thread.start()
+
             while True:
                 # Gather start time
                 start = time.time()
@@ -105,41 +110,15 @@ class ESP32SecurityCam(threading.Thread):
                 elapsed = time.time() - start
             
                 if ret and frame is not None:
-                    # Calculate the current "fps" for this frame and save it
-                    fps = 1 // elapsed
-                    self.fps_snapshots.append(fps)
-                    avg_fps = sum(self.fps_snapshots) // len(self.fps_snapshots)
-                    print(f"Frame/fps buffer len: {len(self.frames)} {len(self.fps_snapshots)} Cur/Avg FPS: {fps}/{avg_fps}")
-                    if self.do_face_detect:
-                        # Convert the frame to gray
-                        gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
-                        # Find any faces in frame
-                        detections = self.frontal.detectMultiScale(gray, 1.3, 5)
-
-                        # If we have a detection, are not recording, and not on cooldown to record start a recording
-                        if detections and not self.recording and self.frames_till_record == 0:
-                            for (x, y, w, h) in detections:
-                                # highlight the detected faces in the frame
-                                cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
-                            print("STARTING RECORDING")
-                            self.recording = True
-                            # Calculate the average fps for the current frame buffer
-                            # This isn't perfect but it gives much better output results than if we use the reported FPS
-                            avg_fps = int(sum(self.fps_snapshots) / len(self.fps_snapshots))
-                            
-                            if self.writer is None:
-                                h, w = frame.shape[:2]
-                                print(f"VIDEO STATS: {h}p{avg_fps}")
-                                file_name = "recording-" + datetime.datetime.now().strftime("%d-%m-%Y %I-%M-%S%p") + ".avi"
-                                self.writer = cv2.VideoWriter(file_name, self.fourcc, avg_fps, (w, h), True)
-
-                        # If there is a frames till record cooldown, decrement it
-                        if self.frames_till_record > 0:
-                            self.frames_till_record -= 1
-
                     # Store the current frame
                     self.cur_frame = np.copy(frame)
-                    self.frames.append(frame)
+
+                    if self.do_face_detect:
+                        # Alert the facial detection thread there is a new frame to process
+                        self._new_frame = True
+                        # Calculate the current "fps" for this frame and save it
+                        self.fps = 1 // elapsed
+                        self.fps_snapshots.append(self.fps)
 
                     # If we are recording
                     if self.recording:
@@ -198,11 +177,47 @@ class ESP32SecurityCam(threading.Thread):
         # Write all frames stored in our buffer to the file
         for frame in frames:
             self.writer.write(frame)
-        
+
         # Release the writer
         self.writer.release()
 
+    def face_detect(self):
+        print("Starting facial detection thread")
+        while True:
+            if self._new_frame:
+                self._new_frame = False
+                frame = self.cur_frame
+                avg_fps = sum(self.fps_snapshots) // len(self.fps_snapshots)
+                print(f"Frame/fps buffer len: {len(self.frames)} {len(self.fps_snapshots)} Cur/Avg FPS: {self.fps}/{avg_fps}")
+                # Convert the frame to gray
+                gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+                # Find any faces in frame
+                detections = self.frontal.detectMultiScale(gray, 1.3, 5)
+                # If we have a detection, are not recording, and not on cooldown to record start a recording
+                if len(detections) > 0 and not self.recording and self.frames_till_record == 0:
+                    for (x, y, w, h) in detections:
+                        # highlight the detected faces in the frame 
+                        cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                    
+                    print("STARTING RECORDING")
+                    self.recording = True
+                    # Calculate the average fps for the current frame buffer
+                    # This isn't perfect but it gives much better output results than if we use the reported FPS
+                    avg_fps = int(sum(self.fps_snapshots) / len(self.fps_snapshots))
+                    
+                    if self.writer is None:
+                        h, w = frame.shape[:2]
+                        print(f"VIDEO STATS: {h}p{avg_fps}")
+                        file_name = "recording-" + datetime.datetime.now().strftime("%d-%m-%Y %I-%M-%S%p") + ".avi"
+                        self.writer = cv2.VideoWriter(file_name, self.fourcc, avg_fps, (w, h), True)
+                
+                # Store the frame
+                self.frames.append(frame)
+                # If there is a frames till record cooldown, decrement it
+                if self.frames_till_record > 0:
+                    self.frames_till_record -= 1
+
 
 if __name__ == "__main__":
-    cam = ESP32SecurityCam("http:#192.168.0.27", 11, True, False, 100, 50, False)
+    cam = ESP32SecurityCam("http:#192.168.0.27", 11, (True, False), 100, 50, False)
     cam.start()
