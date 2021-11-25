@@ -219,5 +219,5 @@ class ESP32SecurityCam(threading.Thread):
 
 
 if __name__ == "__main__":
-    cam = ESP32SecurityCam("http:#192.168.0.27", 11, (True, False), 100, 50, False)
+    cam = ESP32SecurityCam("http:192.168.0.27", 11, (True, False), 100, 50, False)
     cam.start()
